@@ -32,6 +32,7 @@ var tile_sources := {
 @onready var nodes_container: Node2D = $ResourceNodes
 @onready var stations_container: Node2D = $Stations
 @onready var aspects_container: Node2D = $Aspects
+@onready var npcs_container: Node2D = $NPCs
 
 # Distribución de nodos por bioma: tipo, tool, skill, cantidad.
 const NODE_SPAWNS := {
@@ -56,6 +57,7 @@ func _ready() -> void:
 	_spawn_resource_nodes()
 	_spawn_stations()
 	_spawn_aspects()
+	_spawn_npcs()
 	_center_camera_on_base()
 
 func _biome_at(tx: int, ty: int) -> String:
@@ -225,6 +227,13 @@ func _spawn_stations() -> void:
 		station.station_id = id
 		station.position = center + STATION_SPOTS[id]
 		stations_container.add_child(station)
+
+func _spawn_npcs() -> void:
+	var merchant := Merchant.new()
+	merchant.name = "Merchant"
+	var center := Vector2(MAP_W / 2.0 * TILE_W, MAP_H / 2.0 * TILE_H)
+	merchant.position = center + Vector2(0, -176)
+	npcs_container.add_child(merchant)
 
 # Aspectos guardianes (Fase 6): [tipo, celda del mapa].
 func _spawn_aspects() -> void:

@@ -28,6 +28,8 @@ const ITEMS := {
 	# Arma y armadura T1 (Fase 5/6 — combate)
 	"sword": {"name": "Espada de hierro", "short": "Espada", "type": ItemType.WEAPON, "weight": 4.0, "damage": 25.0, "range": 60.0},
 	"chestplate": {"name": "Peto de cuero", "short": "Peto", "type": ItemType.ARMOR, "weight": 6.0, "armor": 6.0},
+	# Moneda (Fase 7)
+	"gold": {"name": "Oro", "short": "Oro", "type": ItemType.RESOURCE, "weight": 0.0},
 }
 
 static func info(id: String) -> Dictionary:

@@ -24,6 +24,9 @@ var _craft_panel: PanelContainer
 var _craft_title: Label
 var _craft_list: VBoxContainer
 var _craft_station_id := ""
+var _merchant_panel: PanelContainer
+var _merchant_title: Label
+var _merchant_list: VBoxContainer
 var _hp_bar: ProgressBar
 var _hp_label: Label
 var _death_panel: PanelContainer
@@ -37,6 +40,7 @@ func _ready() -> void:
 	_build_hotbar()
 	_build_inventory_panel()
 	_build_crafting_panel()
+	_build_merchant_panel()
 	_build_hp_bar()
 	_build_death_panel()
 	refresh_tool("")
@@ -393,6 +397,115 @@ func _on_craft_pressed(recipe_id: String) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
 		player.craft(recipe_id)
+
+func _build_merchant_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "MerchantPanel"
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(460, 0)
+	panel.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.11, 0.12, 0.94)
+	sb.border_color = Color(1, 0.85, 0.4, 0.25)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	panel.add_theme_stylebox_override("panel", sb)
+	add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	title.text = ""
+	vbox.add_child(title)
+
+	var gold := Label.new()
+	gold.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	gold.add_theme_font_size_override("font_size", 14)
+	gold.add_theme_color_override("font_color", Color(1, 0.9, 0.4, 1))
+	gold.text = ""
+	vbox.add_child(gold)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	var list := VBoxContainer.new()
+	list.name = "MerchantList"
+	list.add_theme_constant_override("separation", 6)
+	vbox.add_child(list)
+
+	_merchant_panel = panel
+	_merchant_title = title
+	_merchant_list = list
+
+func open_merchant() -> void:
+	_merchant_title.text = "Comerciante — E para cerrar"
+	refresh_merchant()
+	_merchant_panel.visible = true
+
+func close_merchant() -> void:
+	_merchant_panel.visible = false
+
+func merchant_open() -> bool:
+	return _merchant_panel != null and _merchant_panel.visible
+
+func refresh_merchant() -> void:
+	if not is_node_ready():
+		return
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	var economy: Economy = player.economy
+	var gold_label: Label = _merchant_title.get_parent().get_child(1)
+	gold_label.text = "Oro: %d" % player.inventory.count("gold")
+	for c in _merchant_list.get_children():
+		_merchant_list.remove_child(c)
+		c.queue_free()
+	for id: String in economy.BASE_PRICES:
+		var buy := economy.buy_price(id)
+		var sell := economy.sell_price(id)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		_merchant_list.add_child(row)
+		var label := Label.new()
+		label.custom_minimum_size = Vector2(210, 0)
+		label.text = "%s\n  Compra %dg · Venta %dg" % [GameItems.name_of(id), buy, sell]
+		row.add_child(label)
+		var stock := Label.new()
+		stock.custom_minimum_size = Vector2(70, 0)
+		stock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		stock.text = "x%d" % player.inventory.count(id)
+		row.add_child(stock)
+		var buy_btn := Button.new()
+		buy_btn.text = "Comprar x1"
+		buy_btn.disabled = player.inventory.count("gold") < buy or not player.inventory.can_add(id, 1)
+		buy_btn.tooltip_text = "Falta oro" if player.inventory.count("gold") < buy else "Inventario lleno"
+		var bid := id
+		buy_btn.pressed.connect(_on_merchant_buy.bind(bid))
+		row.add_child(buy_btn)
+		var sell_btn := Button.new()
+		sell_btn.text = "Vender x1"
+		sell_btn.disabled = not player.inventory.has_item(id)
+		sell_btn.tooltip_text = "No tenés este recurso"
+		var sid := id
+		sell_btn.pressed.connect(_on_merchant_sell.bind(sid))
+		row.add_child(sell_btn)
+
+func _on_merchant_buy(id: String) -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if player:
+		player.merchant_buy(id)
+
+func _on_merchant_sell(id: String) -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if player:
+		player.merchant_sell(id)
 
 func _build_hp_bar() -> void:
 	var root := Control.new()

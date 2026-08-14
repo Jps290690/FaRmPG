@@ -5,17 +5,20 @@ const SPEED := 220.0
 const CLICK_EPSILON := 6.0
 const GATHER_RANGE := 70.0
 const STATION_RANGE := 95.0
+const MERCHANT_RANGE := 95.0
 const MAX_HP := 100.0
 const BASE_PUNCH := 5.0
 const ATTACK_CD := 0.6
 const MELEE_RANGE := 65.0
 const BASE_POS := Vector2(1536, 576)
+const STARTING_GOLD := 100
 
 var has_target := false
 var move_target := Vector2.ZERO
 
 var inventory := Inventory.new()
 var skills := Skills.new()
+var economy := Economy.new()
 var equipped := "axe"
 
 var hp := MAX_HP
@@ -52,6 +55,7 @@ func _starter_tools() -> void:
 	inventory.add_item("pickaxe")
 	inventory.add_item("sickle")
 	inventory.add_item("skinning_knife")
+	inventory.add_item("gold", STARTING_GOLD)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("move_click"):
@@ -267,6 +271,13 @@ func _try_interact() -> void:
 	if hud.craft_panel_open():
 		hud.close_crafting()
 		return
+	if hud.merchant_open():
+		hud.close_merchant()
+		return
+	var merchant := _nearest_merchant()
+	if merchant != null:
+		hud.open_merchant()
+		return
 	var station := _nearest_station()
 	if station == null:
 		_try_gather()
@@ -275,6 +286,51 @@ func _try_interact() -> void:
 		_build_station(station)
 		return
 	hud.open_crafting(station.station_id, Recipes.station_info(station.station_id).get("name", station.station_id))
+
+func _nearest_merchant() -> Merchant:
+	var best: Merchant = null
+	var best_d := MERCHANT_RANGE
+	for child in get_tree().get_nodes_in_group("merchants"):
+		var m := child as Merchant
+		if m == null:
+			continue
+		var d := global_position.distance_to(m.global_position)
+		if d < best_d:
+			best_d = d
+			best = m
+	return best
+
+func merchant_buy(id: String) -> void:
+	if not hud.merchant_open():
+		return
+	var price := economy.buy_price(id)
+	if not inventory.has_item("gold", price):
+		hud.message("No tenés oro suficiente.")
+		hud.refresh_merchant()
+		return
+	if not inventory.can_add(id, 1):
+		hud.message("Inventario lleno.")
+		hud.refresh_merchant()
+		return
+	inventory.remove_item("gold", price)
+	inventory.add_item(id, 1)
+	economy.record_buy(id)
+	hud.message("Compraste %s x1 por %d de oro." % [GameItems.name_of(id), price])
+	hud.refresh_merchant()
+
+func merchant_sell(id: String) -> void:
+	if not hud.merchant_open():
+		return
+	if not inventory.has_item(id):
+		hud.message("No tenés %s." % GameItems.name_of(id))
+		hud.refresh_merchant()
+		return
+	var price := economy.sell_price(id)
+	inventory.remove_item(id, 1)
+	inventory.add_item("gold", price)
+	economy.record_sell(id)
+	hud.message("Vendiste %s x1 por %d de oro." % [GameItems.name_of(id), price])
+	hud.refresh_merchant()
 
 func _nearest_station() -> Station:
 	var best: Station = null
@@ -441,4 +497,5 @@ func debug_state() -> String:
 		if s:
 			stations.append(s.debug_state())
 	lines.append("stations=[%s]" % ", ".join(stations))
+	lines.append("economy=%s" % economy.debug_string())
 	return "\n".join(lines)
