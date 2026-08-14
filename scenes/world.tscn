@@ -30,7 +30,7 @@ offset_right = 500.0
 offset_bottom = 40.0
 theme_override_colors/font_color = Color(1, 1, 1, 0.9)
 theme_override_font_sizes/font_size = 14
-text = "Mover: WASD o click. Recolectar: E. Atacar: Espacio. Hotbar: 1-8. Inventario: B. Zoom: rueda."
+text = "Mover: WASD o click. Recolectar: E. Atacar: Espacio. Hotbar: 1-8. Inventario: B. Comerciante: E. Ajustes: Esc."
 
 [node name="Progress" type="Label" parent="HUD"]
 anchors_preset = 5

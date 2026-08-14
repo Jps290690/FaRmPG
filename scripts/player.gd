@@ -12,6 +12,8 @@ const ATTACK_CD := 0.6
 const MELEE_RANGE := 65.0
 const BASE_POS := Vector2(1536, 576)
 const STARTING_GOLD := 100
+const SAVE_PATH := "user://save.json"
+const SAVE_VERSION := 1
 
 var has_target := false
 var move_target := Vector2.ZERO
@@ -36,6 +38,7 @@ var _poison_left := 0.0
 var _poison_timer := 0.0
 var _last_gather_pos := Vector2.ZERO
 var _last_gather_time := -999.0
+var _save_timer: Timer
 
 @onready var world: Node2D = get_parent()
 @onready var hud: Node = world.get_node("HUD")
@@ -48,7 +51,18 @@ func _ready() -> void:
 	inventory.changed.connect(hud.refresh_inventory)
 	inventory.changed.connect(hud.refresh_hotbar)
 	skills.changed.connect(hud.refresh_skills)
+	_save_timer = Timer.new()
+	_save_timer.one_shot = true
+	_save_timer.wait_time = 1.0
+	_save_timer.timeout.connect(save_game)
+	add_child(_save_timer)
+	inventory.changed.connect(_schedule_save)
+	skills.changed.connect(_schedule_save)
 	_starter_tools()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+		save_game()
 
 func _starter_tools() -> void:
 	inventory.add_item("axe")
@@ -57,8 +71,84 @@ func _starter_tools() -> void:
 	inventory.add_item("skinning_knife")
 	inventory.add_item("gold", STARTING_GOLD)
 
+# ---- Autosave (Fase 8) ----
+
+func _schedule_save() -> void:
+	if _save_timer != null and not _save_timer.is_stopped():
+		return
+	_save_timer.start()
+
+func save_game() -> void:
+	var data := {
+		"version": SAVE_VERSION,
+		"inventory": inventory.snapshot(),
+		"skills": _skills_snapshot(),
+		"equipped": equipped,
+		"position": [global_position.x, global_position.y],
+		"economy": economy.snapshot(),
+		"stations": _stations_snapshot(),
+	}
+	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(data, "  "))
+
+func load_game() -> void:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return
+	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var data: Variant = JSON.parse_string(f.get_as_text())
+	if not (data is Dictionary):
+		return
+	var inv: Variant = data.get("inventory", {})
+	if inv is Dictionary:
+		inventory.restore(inv)
+	var skill_data: Variant = data.get("skills", {})
+	if skill_data is Dictionary:
+		skills.restore(skill_data)
+	equipped = String(data.get("equipped", equipped))
+	hud.set_equipped(equipped)
+	var pos: Variant = data.get("position", [])
+	if pos is Array and pos.size() == 2:
+		global_position = Vector2(float(pos[0]), float(pos[1]))
+	var econ: Variant = data.get("economy", {})
+	if econ is Dictionary:
+		economy.restore(econ)
+	var stations: Variant = data.get("stations", {})
+	if stations is Dictionary:
+		for child in stations_container.get_children():
+			var st := child as Station
+			if st != null and stations.has(st.station_id):
+				if bool(stations[st.station_id]) and not st.built:
+					st.build()
+
+func _skills_snapshot() -> Dictionary:
+	var out := {}
+	for s: String in skills.SKILLS:
+		out[s] = {"level": skills.level(s), "xp": skills.xp(s)}
+	return out
+
+func _stations_snapshot() -> Dictionary:
+	var out := {}
+	for child in stations_container.get_children():
+		var st := child as Station
+		if st != null:
+			out[st.station_id] = st.built
+	return out
+
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_settings"):
+		if hud.settings_open():
+			hud.close_settings()
+		else:
+			hud.open_settings()
+		return
+	if hud.settings_open():
+		return
 	if event.is_action_pressed("move_click"):
+		if not Settings.click_move:
+			return
 		var enemy := _aspect_at(get_global_mouse_position(), MELEE_RANGE + 16.0)
 		if enemy != null:
 			_attack_target(enemy)
@@ -99,6 +189,9 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		velocity = Vector2.ZERO
 		return
+	if hud.settings_open():
+		velocity = Vector2.ZERO
+		return
 	if _attack_cd > 0.0:
 		_attack_cd -= delta
 	_tick_poison(delta)
@@ -110,7 +203,9 @@ func _physics_process(delta: float) -> void:
 			_complete_gather()
 		return
 
-	var input_dir := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
+	var input_dir := Vector2.ZERO
+	if Settings.wasd_move:
+		input_dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
 
 	if input_dir != Vector2.ZERO:
 		has_target = false
@@ -151,6 +246,8 @@ func _receive_damage(amount: float) -> void:
 		dmg = maxf(1.0, dmg - GameItems.armor_value("chestplate"))
 	hp = maxf(0.0, hp - dmg)
 	hud.set_hp(hp)
+	if hp > 0.0:
+		Audio.play_sfx("hurt")
 	if hp <= 0.0:
 		_die()
 
@@ -178,6 +275,8 @@ func _die() -> void:
 	hud.set_equipped(equipped)
 	hud.show_death()
 	hud.message("Has muerto. Perdiste todo lo que llevabas.")
+	Audio.play_sfx("death")
+	save_game()
 
 func _respawn() -> void:
 	dead = false
@@ -198,6 +297,8 @@ func _respawn() -> void:
 	equipped = "axe"
 	hud.set_equipped(equipped)
 	hud.message("Reapareciste en la base.")
+	Audio.play_sfx("respawn")
+	save_game()
 
 func _try_attack() -> void:
 	if dead or _gathering or _attack_cd > 0.0:
@@ -214,6 +315,7 @@ func _attack_target(enemy: Aspect) -> void:
 		return
 	_attack_cd = ATTACK_CD
 	enemy.take_damage(_weapon_damage())
+	Audio.play_sfx("attack")
 
 func _weapon_damage() -> float:
 	if GameItems.is_weapon_item(equipped):
@@ -306,16 +408,19 @@ func merchant_buy(id: String) -> void:
 	var price := economy.buy_price(id)
 	if not inventory.has_item("gold", price):
 		hud.message("No tenés oro suficiente.")
+		Audio.play_sfx("error")
 		hud.refresh_merchant()
 		return
 	if not inventory.can_add(id, 1):
 		hud.message("Inventario lleno.")
+		Audio.play_sfx("error")
 		hud.refresh_merchant()
 		return
 	inventory.remove_item("gold", price)
 	inventory.add_item(id, 1)
 	economy.record_buy(id)
 	hud.message("Compraste %s x1 por %d de oro." % [GameItems.name_of(id), price])
+	Audio.play_sfx("buy")
 	hud.refresh_merchant()
 
 func merchant_sell(id: String) -> void:
@@ -323,6 +428,7 @@ func merchant_sell(id: String) -> void:
 		return
 	if not inventory.has_item(id):
 		hud.message("No tenés %s." % GameItems.name_of(id))
+		Audio.play_sfx("error")
 		hud.refresh_merchant()
 		return
 	var price := economy.sell_price(id)
@@ -330,6 +436,7 @@ func merchant_sell(id: String) -> void:
 	inventory.add_item("gold", price)
 	economy.record_sell(id)
 	hud.message("Vendiste %s x1 por %d de oro." % [GameItems.name_of(id), price])
+	Audio.play_sfx("sell")
 	hud.refresh_merchant()
 
 func _nearest_station() -> Station:
@@ -357,6 +464,8 @@ func _build_station(station: Station) -> void:
 		inventory.remove_item(id, int(cost["inputs"][id]))
 	station.build()
 	hud.message("¡Construiste %s!" % Recipes.station_info(station.station_id).get("name", station.station_id))
+	Audio.play_sfx("build")
+	_schedule_save()
 	_check_meta()
 
 func craft(recipe_id: String) -> void:
@@ -368,14 +477,17 @@ func craft(recipe_id: String) -> void:
 		return
 	if Recipes.skill_locked(skills, recipe):
 		hud.message("Requiere %s L%d." % [_skill_name(String(recipe.get("skill", ""))), int(recipe.get("level", 0))])
+		Audio.play_sfx("error")
 		hud.refresh_crafting()
 		return
 	if not Recipes.can_afford(inventory, recipe.get("inputs", {})):
 		hud.message("Faltan materiales: %s." % Recipes.inputs_text(recipe.get("inputs", {})))
+		Audio.play_sfx("error")
 		hud.refresh_crafting()
 		return
 	if inventory.total_weight() + Recipes.net_weight_change(recipe) > Inventory.MAX_WEIGHT + 0.001:
 		hud.message("Inventario lleno.")
+		Audio.play_sfx("error")
 		hud.refresh_crafting()
 		return
 	for id: String in recipe.get("inputs", {}):
@@ -386,6 +498,7 @@ func craft(recipe_id: String) -> void:
 	for id: String in recipe.get("outputs", {}):
 		inventory.add_item(id, int(recipe["outputs"][id]))
 	hud.message("¡Crafteaste %s!" % recipe.get("name", recipe_id))
+	Audio.play_sfx("craft")
 	hud.refresh_crafting()
 	_check_meta()
 
@@ -471,7 +584,12 @@ func _complete_gather() -> void:
 		hud.message("Inventario lleno.")
 		return
 
+	var lv_before: int = skills.level(node.skill)
 	skills.add_xp(node.skill, Skills.XP_PER_GATHER)
+	if skills.level(node.skill) > lv_before:
+		Audio.play_sfx("levelup")
+		hud.message("¡Subiste %s a nivel %d!" % [Skills.SKILLS.get(node.skill, {}).get("name", node.skill), skills.level(node.skill)])
+	Audio.play_sfx("gather")
 	var still_ok := inventory.use_tool(_gather_tool)
 	hud.refresh_tool(equipped)
 	if not still_ok:

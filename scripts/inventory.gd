@@ -70,6 +70,11 @@ func clear() -> void:
 func snapshot() -> Dictionary:
 	return _slots.duplicate(true)
 
+# Restaura el inventario desde un snapshot guardado (Fase 8 - Autosave).
+func restore(snapshot: Dictionary) -> void:
+	_slots = snapshot.duplicate(true)
+	changed.emit()
+
 func debug_string() -> String:
 	var parts := PackedStringArray()
 	for id: String in _slots:

@@ -87,3 +87,12 @@ func debug_string() -> String:
 	for s: String in SKILLS:
 		parts.append("%s lv%d xp%d/%d" % [s, level(s), xp(s), xp_for_next(s)])
 	return "; ".join(parts)
+
+# Restaura niveles/XP guardados (Fase 8 - Autosave).
+func restore(data: Dictionary) -> void:
+	for s: String in SKILLS:
+		var entry: Variant = data.get(s, {})
+		if entry is Dictionary:
+			_levels[s] = int(entry.get("level", 0))
+			_xp[s] = int(entry.get("xp", 0))
+	changed.emit()

@@ -30,6 +30,7 @@ var _merchant_list: VBoxContainer
 var _hp_bar: ProgressBar
 var _hp_label: Label
 var _death_panel: PanelContainer
+var _settings_panel: PanelContainer
 
 func _ready() -> void:
 	_msg_timer = Timer.new()
@@ -41,6 +42,7 @@ func _ready() -> void:
 	_build_inventory_panel()
 	_build_crafting_panel()
 	_build_merchant_panel()
+	_build_settings_panel()
 	_build_hp_bar()
 	_build_death_panel()
 	refresh_tool("")
@@ -506,6 +508,135 @@ func _on_merchant_sell(id: String) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
 		player.merchant_sell(id)
+
+func _build_settings_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "SettingsPanel"
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(380, 0)
+	panel.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.11, 0.12, 0.94)
+	sb.border_color = Color(0.6, 0.8, 1, 0.3)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	panel.add_theme_stylebox_override("panel", sb)
+	add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Ajustes — Esc para cerrar"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	var click_cb := CheckBox.new()
+	click_cb.text = "Movimiento con click"
+	click_cb.button_pressed = Settings.click_move
+	click_cb.toggled.connect(_on_click_move_toggled)
+	vbox.add_child(click_cb)
+
+	var wasd_cb := CheckBox.new()
+	wasd_cb.text = "Movimiento con WASD"
+	wasd_cb.button_pressed = Settings.wasd_move
+	wasd_cb.toggled.connect(_on_wasd_move_toggled)
+	vbox.add_child(wasd_cb)
+
+	var sep2 := HSeparator.new()
+	vbox.add_child(sep2)
+
+	var mrow := HBoxContainer.new()
+	mrow.add_theme_constant_override("separation", 8)
+	vbox.add_child(mrow)
+	var ml := Label.new()
+	ml.text = "Música"
+	ml.custom_minimum_size = Vector2(64, 0)
+	ml.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	mrow.add_child(ml)
+	var ms := HSlider.new()
+	ms.min_value = 0.0
+	ms.max_value = 100.0
+	ms.value = Settings.music_volume * 100.0
+	ms.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ms.value_changed.connect(_on_music_volume_changed)
+	mrow.add_child(ms)
+
+	var srow := HBoxContainer.new()
+	srow.add_theme_constant_override("separation", 8)
+	vbox.add_child(srow)
+	var sl := Label.new()
+	sl.text = "Efectos"
+	sl.custom_minimum_size = Vector2(64, 0)
+	sl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	srow.add_child(sl)
+	var ss := HSlider.new()
+	ss.min_value = 0.0
+	ss.max_value = 100.0
+	ss.value = Settings.sfx_volume * 100.0
+	ss.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ss.value_changed.connect(_on_sfx_volume_changed)
+	srow.add_child(ss)
+
+	var sep3 := HSeparator.new()
+	vbox.add_child(sep3)
+
+	var save_btn := Button.new()
+	save_btn.text = "Guardar ahora"
+	save_btn.pressed.connect(_on_save_now_pressed)
+	vbox.add_child(save_btn)
+
+	_settings_panel = panel
+
+func open_settings() -> void:
+	_inventory_panel.visible = false
+	close_crafting()
+	close_merchant()
+	_settings_panel.visible = true
+
+func close_settings() -> void:
+	_settings_panel.visible = false
+
+func settings_open() -> bool:
+	return _settings_panel != null and _settings_panel.visible
+
+func toggle_settings() -> void:
+	if settings_open():
+		close_settings()
+	else:
+		open_settings()
+
+func _on_click_move_toggled(on: bool) -> void:
+	Settings.click_move = on
+	Settings.save_settings()
+
+func _on_wasd_move_toggled(on: bool) -> void:
+	Settings.wasd_move = on
+	Settings.save_settings()
+
+func _on_music_volume_changed(v: float) -> void:
+	Settings.music_volume = v / 100.0
+	Settings.save_settings()
+	Audio.apply_settings()
+
+func _on_sfx_volume_changed(v: float) -> void:
+	Settings.sfx_volume = v / 100.0
+	Settings.save_settings()
+
+func _on_save_now_pressed() -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if player != null and player.has_method("save_game"):
+		player.save_game()
+		message("Partida guardada.")
+		Audio.play_sfx("craft")
 
 func _build_hp_bar() -> void:
 	var root := Control.new()

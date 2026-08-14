@@ -59,6 +59,7 @@ func _ready() -> void:
 	_spawn_aspects()
 	_spawn_npcs()
 	_center_camera_on_base()
+	player.load_game()
 
 func _biome_at(tx: int, ty: int) -> String:
 	var dx := absf(tx - MAP_W / 2.0)

@@ -42,6 +42,13 @@ func record_sell(id: String) -> void:
 func record_buy(id: String) -> void:
 	_volume[id] = volume(id) - 1
 
+func snapshot() -> Dictionary:
+	return _volume.duplicate(true)
+
+# Restaura los volúmenes guardados (Fase 8 - Autosave).
+func restore(volume_data: Dictionary) -> void:
+	_volume = volume_data.duplicate(true)
+
 func debug_string() -> String:
 	var parts := PackedStringArray()
 	for id: String in BASE_PRICES:
