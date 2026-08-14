@@ -11,6 +11,8 @@ script = ExtResource("1_world")
 
 [node name="ResourceNodes" type="Node2D" parent="."]
 
+[node name="Stations" type="Node2D" parent="."]
+
 [node name="Player" parent="." instance=ExtResource("2_player")]
 groups = ["player"]
 

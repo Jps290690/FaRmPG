@@ -30,13 +30,22 @@ var tile_sources := {
 @onready var player: CharacterBody2D = $Player
 @onready var camera: Camera2D = $Player/Camera2D
 @onready var nodes_container: Node2D = $ResourceNodes
+@onready var stations_container: Node2D = $Stations
 
 # Distribución de nodos por bioma: tipo, tool, skill, cantidad.
 const NODE_SPAWNS := {
 	"forest": [["wood", "axe", "tala", 14], ["fiber", "sickle", "gathering", 2]],
-	"quarry": [["stone", "pickaxe", "mining", 10]],
+	"quarry": [["stone", "pickaxe", "mining", 8], ["mineral", "pickaxe", "mining", 6]],
 	"prairie": [["leather", "skinning_knife", "hunting", 8]],
 	"grove": [["fiber", "sickle", "gathering", 12]],
+}
+
+# Posición de cada estación (alrededor del centro = base).
+const STATION_SPOTS := {
+	"lumber_workbench": Vector2(-192, -64),
+	"forge": Vector2(192, -64),
+	"loom": Vector2(-192, 64),
+	"tannery": Vector2(192, 64),
 }
 
 func _ready() -> void:
@@ -44,6 +53,7 @@ func _ready() -> void:
 	_build_ground()
 	_build_base_border()
 	_spawn_resource_nodes()
+	_spawn_stations()
 	_center_camera_on_base()
 
 func _biome_at(tx: int, ty: int) -> String:
@@ -177,6 +187,8 @@ func _amount_for(resource: String) -> int:
 			return 5
 		"leather":
 			return 2
+		"mineral":
+			return 3
 	return 3
 
 func _gather_time_for(resource: String) -> float:
@@ -189,6 +201,8 @@ func _gather_time_for(resource: String) -> float:
 			return 1.4
 		"leather":
 			return 1.6
+		"mineral":
+			return 2.4
 	return 1.8
 
 func _center_camera_on_base() -> void:
@@ -201,3 +215,11 @@ func _center_camera_on_base() -> void:
 	camera.limit_top = 0
 	camera.limit_right = int(world_px.x)
 	camera.limit_bottom = int(world_px.y)
+
+func _spawn_stations() -> void:
+	var center := Vector2(MAP_W / 2.0 * TILE_W, MAP_H / 2.0 * TILE_H)
+	for id: String in STATION_SPOTS:
+		var station := Station.new()
+		station.station_id = id
+		station.position = center + STATION_SPOTS[id]
+		stations_container.add_child(station)

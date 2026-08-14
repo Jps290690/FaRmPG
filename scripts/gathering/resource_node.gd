@@ -49,6 +49,10 @@ func _build_visuals() -> void:
 		"stone":
 			_poly(_main, ROCK, Color("#8d929a"))
 			_poly(_depleted, ROCK_DEAD, Color("#5a5f66"))
+		"mineral":
+			_poly(_main, ROCK, Color("#6d7fa0"))
+			_poly(_main, ROCK, Color("#9db2d6").darkened(0.2))
+			_poly(_depleted, ROCK_DEAD, Color("#3f4a63"))
 		"fiber":
 			_poly(_main, BUSH_A, Color("#3f8f6b"))
 			_poly(_main, BUSH_B, Color("#5fbf8b"))

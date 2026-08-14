@@ -4,7 +4,7 @@ const HOTBAR_SLOTS := 8
 const SLOT_W := 96
 const SLOT_H := 44
 
-const TOOL_ORDER := ["axe", "pickaxe", "sickle", "skinning_knife"]
+const TOOL_ORDER := ["axe", "metal_axe", "pickaxe", "metal_pickaxe", "sickle", "metal_sickle", "skinning_knife", "metal_knife"]
 
 @onready var tool_label: Label = $Tool
 @onready var inventory_label: Label = $Inventory
@@ -20,6 +20,10 @@ var _weight_bar: ProgressBar
 var _weight_label: Label
 var _weight_fill: StyleBoxFlat
 var _item_list: VBoxContainer
+var _craft_panel: PanelContainer
+var _craft_title: Label
+var _craft_list: VBoxContainer
+var _craft_station_id := ""
 
 func _ready() -> void:
 	_msg_timer = Timer.new()
@@ -29,6 +33,7 @@ func _ready() -> void:
 	add_child(_msg_timer)
 	_build_hotbar()
 	_build_inventory_panel()
+	_build_crafting_panel()
 	refresh_tool("")
 	refresh_inventory()
 	refresh_skills()
@@ -281,6 +286,104 @@ func show_progress(ratio: float) -> void:
 
 func hide_progress() -> void:
 	progress_label.visible = false
+
+func _build_crafting_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "CraftPanel"
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(420, 0)
+	panel.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.11, 0.12, 0.94)
+	sb.border_color = Color(1, 1, 1, 0.18)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	panel.add_theme_stylebox_override("panel", sb)
+	add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	title.text = ""
+	vbox.add_child(title)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	var list := VBoxContainer.new()
+	list.name = "CraftList"
+	list.add_theme_constant_override("separation", 6)
+	vbox.add_child(list)
+
+	_craft_panel = panel
+	_craft_title = title
+	_craft_list = list
+
+func open_crafting(station_id: String, station_name: String) -> void:
+	_craft_station_id = station_id
+	_craft_title.text = "%s — E para cerrar" % station_name
+	refresh_crafting()
+	_craft_panel.visible = true
+
+func close_crafting() -> void:
+	_craft_panel.visible = false
+	_craft_station_id = ""
+
+func craft_panel_open() -> bool:
+	return _craft_panel != null and _craft_panel.visible
+
+func craft_station_id() -> String:
+	return _craft_station_id
+
+func refresh_crafting() -> void:
+	if not is_node_ready():
+		return
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	for c in _craft_list.get_children():
+		_craft_list.remove_child(c)
+		c.queue_free()
+	if _craft_station_id.is_empty():
+		return
+	for recipe_id: String in Recipes.recipes_for_station(_craft_station_id):
+		var recipe: Dictionary = Recipes.recipe_info(recipe_id)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		_craft_list.add_child(row)
+		var label := Label.new()
+		label.custom_minimum_size = Vector2(300, 0)
+		label.text = "%s\n  %s" % [recipe.get("name", recipe_id), Recipes.inputs_text(recipe.get("inputs", {}))]
+		row.add_child(label)
+		var btn := Button.new()
+		btn.text = "Craftear"
+		var rid := recipe_id
+		btn.pressed.connect(_on_craft_pressed.bind(rid))
+		row.add_child(btn)
+		_refresh_craft_button(btn, player, recipe)
+
+func _refresh_craft_button(btn: Button, player: Node, recipe: Dictionary) -> void:
+	var locked := Recipes.skill_locked(player.skills, recipe)
+	var afford := Recipes.can_afford(player.inventory, recipe.get("inputs", {}))
+	btn.disabled = locked or not afford
+	var tip := ""
+	if locked:
+		tip = "Requiere %s L%d" % [Skills.SKILLS.get(String(recipe.get("skill", "")), {}).get("name", ""), int(recipe.get("level", 0))]
+	elif not afford:
+		tip = "Faltan materiales"
+	btn.tooltip_text = tip
+
+func _on_craft_pressed(recipe_id: String) -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if player:
+		player.craft(recipe_id)
 
 func message(text: String) -> void:
 	message_label.text = text

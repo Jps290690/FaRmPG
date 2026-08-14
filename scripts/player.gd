@@ -3,6 +3,7 @@ extends CharacterBody2D
 const SPEED := 220.0
 const CLICK_EPSILON := 6.0
 const GATHER_RANGE := 70.0
+const STATION_RANGE := 95.0
 
 var has_target := false
 var move_target := Vector2.ZERO
@@ -20,6 +21,7 @@ var _gather_elapsed := 0.0
 @onready var world: Node2D = get_parent()
 @onready var hud: Node = world.get_node("HUD")
 @onready var nodes_container: Node2D = world.get_node("ResourceNodes")
+@onready var stations_container: Node2D = world.get_node("Stations")
 
 func _ready() -> void:
 	add_to_group("player")
@@ -40,7 +42,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		has_target = true
 		return
 	if event.is_action_pressed("interact"):
-		_try_gather()
+		_try_interact()
 		return
 	if event.is_action_pressed("toggle_inventory"):
 		hud.toggle_inventory()
@@ -88,6 +90,103 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+func _try_interact() -> void:
+	if hud.craft_panel_open():
+		hud.close_crafting()
+		return
+	var station := _nearest_station()
+	if station == null:
+		_try_gather()
+		return
+	if not station.built:
+		_build_station(station)
+		return
+	hud.open_crafting(station.station_id, Recipes.station_info(station.station_id).get("name", station.station_id))
+
+func _nearest_station() -> Station:
+	var best: Station = null
+	var best_d := STATION_RANGE
+	for child in stations_container.get_children():
+		var s := child as Station
+		if s == null:
+			continue
+		var d := global_position.distance_to(s.global_position)
+		if d < best_d:
+			best_d = d
+			best = s
+	return best
+
+func _build_station(station: Station) -> void:
+	var cost: Dictionary = station.build_cost()
+	if skills.level(String(cost.get("skill", ""))) < int(cost.get("level", 0)):
+		hud.message("Requiere %s L%d." % [_skill_name(String(cost.get("skill", ""))), int(cost.get("level", 0))])
+		return
+	if not Recipes.can_afford(inventory, cost.get("inputs", {})):
+		hud.message("Faltan materiales: %s." % Recipes.inputs_text(cost.get("inputs", {})))
+		return
+	for id: String in cost.get("inputs", {}):
+		inventory.remove_item(id, int(cost["inputs"][id]))
+	station.build()
+	hud.message("¡Construiste %s!" % Recipes.station_info(station.station_id).get("name", station.station_id))
+	_check_meta()
+
+func craft(recipe_id: String) -> void:
+	if not hud.craft_panel_open():
+		return
+	var station_id: String = hud.craft_station_id()
+	var recipe: Dictionary = Recipes.recipe_info(recipe_id)
+	if recipe.is_empty() or recipe.get("station", "") != station_id:
+		return
+	if Recipes.skill_locked(skills, recipe):
+		hud.message("Requiere %s L%d." % [_skill_name(String(recipe.get("skill", ""))), int(recipe.get("level", 0))])
+		hud.refresh_crafting()
+		return
+	if not Recipes.can_afford(inventory, recipe.get("inputs", {})):
+		hud.message("Faltan materiales: %s." % Recipes.inputs_text(recipe.get("inputs", {})))
+		hud.refresh_crafting()
+		return
+	if inventory.total_weight() + Recipes.net_weight_change(recipe) > Inventory.MAX_WEIGHT + 0.001:
+		hud.message("Inventario lleno.")
+		hud.refresh_crafting()
+		return
+	for id: String in recipe.get("inputs", {}):
+		inventory.remove_item(id, int(recipe["inputs"][id]))
+	var replaced := String(recipe.get("replaces", ""))
+	if not replaced.is_empty() and inventory.has_item(replaced):
+		inventory.remove_item(replaced, 1)
+	for id: String in recipe.get("outputs", {}):
+		inventory.add_item(id, int(recipe["outputs"][id]))
+	hud.message("¡Crafteaste %s!" % recipe.get("name", recipe_id))
+	hud.refresh_crafting()
+	_check_meta()
+
+func _skill_name(id: String) -> String:
+	return Skills.SKILLS.get(id, {}).get("name", id)
+
+func debug_add(item: String, qty: int = 1) -> void:
+	inventory.add_item(item, qty)
+
+func debug_remove(item: String, qty: int = 1) -> void:
+	inventory.remove_item(item, qty)
+
+func debug_skill(skill: String, xp: int) -> void:
+	skills.add_xp(skill, xp)
+
+func _check_meta() -> void:
+	var all_built := true
+	for child in stations_container.get_children():
+		var s := child as Station
+		if s == null or not s.built:
+			all_built = false
+			break
+	var t1_done := true
+	for item: String in Recipes.T1_SET:
+		if not inventory.has_item(item):
+			t1_done = false
+			break
+	if all_built and t1_done:
+		hud.message("¡Objetivo del POC cumplido! Set T1 + 4 estaciones construidas.")
+
 func _try_gather() -> void:
 	if _gathering:
 		return
@@ -98,7 +197,7 @@ func _try_gather() -> void:
 	if equipped.is_empty():
 		hud.message("Equipá una herramienta (hotbar 1-8).")
 		return
-	if equipped != node.tool_required:
+	if GameItems.info(equipped).get("harvest", "") != node.resource_type:
 		hud.message("Necesitás %s equipado." % GameItems.name_of(node.tool_required))
 		return
 	if inventory.get_durability(equipped) <= 0.0:
@@ -159,4 +258,10 @@ func debug_state() -> String:
 	lines.append("skills=%s" % skills.debug_string())
 	lines.append("equipped=%s" % equipped)
 	lines.append("gathering=%s gather_node=%s" % [_gathering, _gather_node.get_path() if _gather_node else ""])
+	var stations := PackedStringArray()
+	for child in stations_container.get_children():
+		var s := child as Station
+		if s:
+			stations.append(s.debug_state())
+	lines.append("stations=[%s]" % ", ".join(stations))
 	return "\n".join(lines)
