@@ -188,3 +188,26 @@ assets/   (textures/, audio/, tilesets/)
 - **Verificación runtime (PID 17232):** save/load completo — `debug_add("wood",5)` → save.json (878 B) con wood x5, posición [1536,576], skills/stations; reinicio → estado restaurado idéntico (posición, inventario, skills, stations, economy); muerte por Dríade (hp 12, poison 5) → autosave post-muerte; respawn restaura hp 100 + kit inicial y limpia el veneno; panel de ajustes: Esc abre/cierra (`settings_open=true/false`), toggles y sliders persisten en settings.json; `play_sfx("gather")` sin errores. Log sin errores.
 - **Lección técnica (Godot 4.6):** al testear movimiento con input sintético, el "W no mueve" puede deberse a (a) personaje **muerto** (`dead` anula `velocity`), (b) ventana sin foco de Windows (el motor descarta teclas inyectadas), o (c) `ui_*` sin W/A/S/D mapeados (ver fix arriba). Para verificar movimiento con teclado, preguntar al usuario que sostenga la tecla real. La herramienta MCP `add_input_binding` escribe en `[input_map]` que el loader IGNORA (lección ya registrada en Fase 3) → editar `project.godot` manualmente en `[input]`.
 - Siguiente tarea: **Fase 9 — Balance y testeo del ciclo completo**.
+### Estado del juego (Fase 9 - VERIFICADA)
+- **Zona segura en la base implementada (peticion del usuario en sesion):** el jugador dentro de su base no puede ser reconocido ni atacado por ningun aspecto.
+  - Player.in_base(): rectangulo centrado en el mundo (1536,576) con (BASE_RADIUS+1) tiles -> x in [1152,1920], y in [384,768] (incluye al comerciante).
+  - Aspect._physics_process: si el jugador esta en la base -> calm() cada frame (apaga hostile, telegraph y estado visual de TODAS las subclases via polimorfismo: Ent apaga ojos, Golem restaura nucleo, Dryad camufla, Boar deja de huir).
+  - Guards en _try_melee y _attack_hit (no ataca ni golpea) + red de seguridad en Player._receive_damage (cubre veneno, cuyo DoT pasa por ahi).
+  - **Verificacion runtime:** 15s parado en la forja (1728,512, dentro del ZONE del Golem) con el Golem patrullando a ~370px -> hp 100/100, hostile=false. Prueba dura: take_damage(10) al Golem desde la base (se enfada) y 8s despues hostile=false patrullando lejos (2454,98), sin perseguir ni atacar.
+- **Ciclo completo T1 verificado en runtime (save real, sin cheats de codigo):** las 4 estaciones construidas (Fase anterior) + refino y crafteo del set completo:
+  - Refino: refine_planks (3 wood->1, taller), refine_metal_bar (2 mineral->1, forja), refine_cloth (4 fiber->1, telar), refine_cured_leather (3 leather->1, curtiduria).
+  - Set T1: metal_axe (taller, reemplaza axe), metal_pickaxe (FORJA - cada arma se craftea en la estacion de su oficio), metal_sickle (telar), metal_knife (curtiduria), sword (forja, sin durabilidad), chestplate (curtiduria, cured_leather 6 + cloth 2).
+  - eplaces consume la herramienta base; la nueva queda equipada automaticamente si era la activa. Hotbar muestra: H.metal 250, P.metal 250, Hoz 250, C.metal 250, Espada, Peto.
+  - _check_meta dispara el mensaje "Objetivo del POC cumplido! Set T1 + 4 estaciones construidas." (captura ase9_meta.png).
+- **Economia verificada en runtime:** BASE_PRICES wood=4 -> venta 2g (4x0.5) / compra 6g (4x1.5). Venta +1 volumen, compra -1 (vuelve a 0). Vender 1 wood = +2g; comprar 1 wood = -6g. Sin arbitraje posible (margen 3x).
+- **Balance revisado (documentado, sin cambios):**
+  - XP: 6/gather, curva 20*(lv+1) -> L4 = 200 XP = ~34 gathers por oficio (4 oficios = ~136 gathers para el T1).
+  - Materiales T1: 36 wood + 23 mineral (18 set + 5 forja) + 18 leather + 8 fiber crudos; ~61.8 kg total vs 30 kg de peso -> obliga a viajes multiples (disenio intencional).
+  - Durabilidad metal 250 (2.5x la base). Golem letal: 40 dmg/telegraph 0.8s; la forja esta dentro de su ZONE -> la zona segura es clave.
+- **Lecciones tecnicas (Godot 4.6 / MCP):**
+  - _try_interact cierra el panel abierto y retorna: al teleportearse con un panel abierto, la primera llamada SOLO lo cierra (repetir la llamada).
+  - Las recetas de crafteo estan atadas a su estacion (craft_pickaxe en la FORJA, no en el taller); craft() falla en silencio si el panel de la estacion correcta no esta abierto.
+  - debug_add ignora el retorno de dd_item (rechazo por peso silencioso): mantener el peso total < 30 al cargar materiales de prueba.
+  - Las llamadas runtime MCP en paralelo no tienen orden garantizado (causo una confusion de inventario en sesion) - serializar las llamadas con dependencia de estado.
+  - Las capturas se guardan en user:// (%APPDATA%\Godot\app_userdata\Cosecha del Bosque\).
+- Siguiente tarea: **Fase 10 - Exportar a Web (HTML5) + GitHub Pages** o pulir pendientes (mensaje de objetivo al terminar el set, rebalance de durabilidad si se desea).

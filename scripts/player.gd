@@ -71,6 +71,16 @@ func _starter_tools() -> void:
 	inventory.add_item("skinning_knife")
 	inventory.add_item("gold", STARTING_GOLD)
 
+# ---- Zona segura de la base (Fase 9) ----
+
+# Devuelve true si el jugador está dentro de su base (bioma central + margen).
+# Estando en la base no puede ser reconocido ni atacado por ningún aspecto.
+func in_base() -> bool:
+	var center := Vector2(world.MAP_W / 2.0 * world.TILE_W, world.MAP_H / 2.0 * world.TILE_H)
+	var half_w := float((world.BASE_RADIUS + 1) * world.TILE_W)
+	var half_h := float((world.BASE_RADIUS + 1) * world.TILE_H)
+	return absf(global_position.x - center.x) <= half_w and absf(global_position.y - center.y) <= half_h
+
 # ---- Autosave (Fase 8) ----
 
 func _schedule_save() -> void:
@@ -241,6 +251,8 @@ func take_damage(amount: float) -> void:
 	_receive_damage(amount)
 
 func _receive_damage(amount: float) -> void:
+	if in_base():
+		return
 	var dmg := amount
 	if inventory.has_item("chestplate"):
 		dmg = maxf(1.0, dmg - GameItems.armor_value("chestplate"))

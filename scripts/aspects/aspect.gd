@@ -63,6 +63,9 @@ func _physics_process(delta: float) -> void:
 	_hp_bar.visible = hp < max_hp
 	_hp_bar.value = hp
 	_tick(delta)
+	# Zona segura: el jugador en su base no es reconocido ni atacado por nada.
+	if p != null and p.in_base():
+		calm()
 
 func _tick(delta: float) -> void:
 	pass
@@ -107,7 +110,7 @@ func _try_melee(delta: float) -> bool:
 	if _attack_cd > 0.0 or _telegraph_left > 0.0:
 		return true
 	var p := _player()
-	if p == null:
+	if p == null or p.in_base():
 		return false
 	if global_position.distance_to(p.global_position) > attack_range:
 		return false
@@ -125,7 +128,7 @@ func _on_telegraph_start() -> void:
 func _attack_hit() -> void:
 	_on_telegraph_end()
 	var p := _player()
-	if p == null or p.dead:
+	if p == null or p.dead or p.in_base():
 		return
 	if global_position.distance_to(p.global_position) <= attack_range + 10.0:
 		p.take_damage(damage)
