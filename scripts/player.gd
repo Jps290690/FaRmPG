@@ -9,9 +9,11 @@ var move_target := Vector2.ZERO
 
 var inventory := Inventory.new()
 var skills := Skills.new()
+var equipped := "axe"
 
 var _gathering := false
 var _gather_node: ResourceNode = null
+var _gather_tool := ""
 var _gather_total := 1.0
 var _gather_elapsed := 0.0
 
@@ -22,6 +24,7 @@ var _gather_elapsed := 0.0
 func _ready() -> void:
 	add_to_group("player")
 	inventory.changed.connect(hud.refresh_inventory)
+	inventory.changed.connect(hud.refresh_hotbar)
 	skills.changed.connect(hud.refresh_skills)
 	_starter_tools()
 
@@ -35,8 +38,28 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("move_click"):
 		move_target = get_global_mouse_position()
 		has_target = true
+		return
 	if event.is_action_pressed("interact"):
 		_try_gather()
+		return
+	if event.is_action_pressed("toggle_inventory"):
+		hud.toggle_inventory()
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var kce: InputEventKey = event
+		var kc: int = kce.physical_keycode
+		if kc >= KEY_1 and kc <= KEY_8:
+			select_slot(kc - KEY_1)
+
+func select_slot(index: int) -> void:
+	var id: String = hud.hotbar_id_at(index)
+	if id.is_empty():
+		return
+	if not GameItems.is_tool_item(id):
+		hud.message("Eso no es una herramienta.")
+		return
+	equipped = id
+	hud.set_equipped(equipped)
 
 func _physics_process(delta: float) -> void:
 	if _gathering:
@@ -72,14 +95,18 @@ func _try_gather() -> void:
 	if node == null:
 		hud.message("No hay recurso cerca.")
 		return
-	if not inventory.has_item(node.tool_required):
-		hud.message("Necesitás: %s" % GameItems.name_of(node.tool_required))
+	if equipped.is_empty():
+		hud.message("Equipá una herramienta (hotbar 1-8).")
 		return
-	if inventory.get_durability(node.tool_required) <= 0.0:
-		hud.message("Tu %s está rota." % GameItems.name_of(node.tool_required))
+	if equipped != node.tool_required:
+		hud.message("Necesitás %s equipado." % GameItems.name_of(node.tool_required))
+		return
+	if inventory.get_durability(equipped) <= 0.0:
+		hud.message("Tu %s está rota." % GameItems.name_of(equipped))
 		return
 	_gathering = true
 	_gather_node = node
+	_gather_tool = equipped
 	_gather_total = node.gather_time * skills.speed_multiplier(node.skill)
 	_gather_elapsed = 0.0
 	has_target = false
@@ -117,10 +144,12 @@ func _complete_gather() -> void:
 		return
 
 	skills.add_xp(node.skill, Skills.XP_PER_GATHER)
-	var still_ok := inventory.use_tool(node.tool_required)
-	hud.refresh_tool(node.tool_required)
+	var still_ok := inventory.use_tool(_gather_tool)
+	hud.refresh_tool(equipped)
 	if not still_ok:
-		hud.message("Tu %s se rompió." % GameItems.name_of(node.tool_required))
+		equipped = ""
+		hud.set_equipped(equipped)
+		hud.message("Tu %s se rompió." % GameItems.name_of(_gather_tool))
 
 	node.harvest_success()
 
@@ -128,5 +157,6 @@ func debug_state() -> String:
 	var lines := PackedStringArray()
 	lines.append("inventory=%s" % inventory.debug_string())
 	lines.append("skills=%s" % skills.debug_string())
+	lines.append("equipped=%s" % equipped)
 	lines.append("gathering=%s gather_node=%s" % [_gathering, _gather_node.get_path() if _gather_node else ""])
 	return "\n".join(lines)

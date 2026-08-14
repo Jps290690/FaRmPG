@@ -1,5 +1,11 @@
 extends CanvasLayer
 
+const HOTBAR_SLOTS := 8
+const SLOT_W := 96
+const SLOT_H := 44
+
+const TOOL_ORDER := ["axe", "pickaxe", "sickle", "skinning_knife"]
+
 @onready var tool_label: Label = $Tool
 @onready var inventory_label: Label = $Inventory
 @onready var skills_label: Label = $Skills
@@ -7,6 +13,13 @@ extends CanvasLayer
 @onready var message_label: Label = $Message
 
 var _msg_timer: Timer
+var _hotbar_order: Array[String] = []
+var _slot_buttons: Array[Button] = []
+var _inventory_panel: PanelContainer
+var _weight_bar: ProgressBar
+var _weight_label: Label
+var _weight_fill: StyleBoxFlat
+var _item_list: VBoxContainer
 
 func _ready() -> void:
 	_msg_timer = Timer.new()
@@ -14,11 +27,139 @@ func _ready() -> void:
 	_msg_timer.wait_time = 3.0
 	_msg_timer.timeout.connect(_clear_message)
 	add_child(_msg_timer)
+	_build_hotbar()
+	_build_inventory_panel()
 	refresh_tool("")
 	refresh_inventory()
 	refresh_skills()
+	var player := get_tree().get_first_node_in_group("player")
+	if player:
+		set_equipped(player.equipped)
 	progress_label.visible = false
 	message_label.visible = false
+
+func _build_hotbar() -> void:
+	var root := Control.new()
+	root.name = "Hotbar"
+	root.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	root.offset_top = -52.0
+	root.offset_bottom = -8.0
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(root)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.11, 0.12, 0.85)
+	sb.border_color = Color(1, 1, 1, 0.18)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	panel.add_theme_stylebox_override("panel", sb)
+	center.add_child(panel)
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 4)
+	panel.add_child(hbox)
+	for i in HOTBAR_SLOTS:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(SLOT_W, SLOT_H)
+		b.toggle_mode = true
+		b.add_theme_font_size_override("font_size", 13)
+		var idx := i
+		b.pressed.connect(_on_slot_pressed.bind(idx))
+		hbox.add_child(b)
+		_slot_buttons.append(b)
+
+func _build_inventory_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "InventoryPanel"
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(380, 0)
+	panel.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.11, 0.12, 0.94)
+	sb.border_color = Color(1, 1, 1, 0.18)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	panel.add_theme_stylebox_override("panel", sb)
+	add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Inventario — B para cerrar"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	vbox.add_child(title)
+
+	var wh := HBoxContainer.new()
+	wh.add_theme_constant_override("separation", 10)
+	vbox.add_child(wh)
+	var wl := Label.new()
+	wl.text = "Peso"
+	wl.custom_minimum_size = Vector2(44, 0)
+	wl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	wh.add_child(wl)
+	var bar := ProgressBar.new()
+	bar.custom_minimum_size = Vector2(190, 18)
+	bar.show_percentage = false
+	bar.max_value = float(Inventory.MAX_WEIGHT)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0, 0, 0, 0.5)
+	bg.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("background", bg)
+	var fill := StyleBoxFlat.new()
+	fill.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("fill", fill)
+	wh.add_child(bar)
+	var wv := Label.new()
+	wv.custom_minimum_size = Vector2(84, 0)
+	wv.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	wv.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	wh.add_child(wv)
+
+	var sep := HSeparator.new()
+	vbox.add_child(sep)
+
+	var list := VBoxContainer.new()
+	list.name = "ItemList"
+	list.add_theme_constant_override("separation", 2)
+	vbox.add_child(list)
+
+	_inventory_panel = panel
+	_weight_bar = bar
+	_weight_label = wv
+	_weight_fill = fill
+	_item_list = list
+
+func toggle_inventory() -> void:
+	refresh_inventory()
+	_inventory_panel.visible = not _inventory_panel.visible
+
+func set_equipped(id: String) -> void:
+	refresh_tool(id)
+	refresh_hotbar()
+
+func hotbar_id_at(index: int) -> String:
+	if index >= 0 and index < _hotbar_order.size():
+		return _hotbar_order[index]
+	return ""
+
+func _on_slot_pressed(index: int) -> void:
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	player.select_slot(index)
 
 func refresh_tool(id: String) -> void:
 	if not is_node_ready():
@@ -32,7 +173,7 @@ func refresh_tool(id: String) -> void:
 	var info := GameItems.info(id)
 	var cur = player.inventory.get_durability(id)
 	var max_d := GameItems.max_durability(id)
-	tool_label.text = "%s  %d/%d" % [info.get("name", id), int(cur), int(max_d)]
+	tool_label.text = "Equipado: %s  %d/%d" % [info.get("name", id), int(cur), int(max_d)]
 
 func refresh_inventory() -> void:
 	if not is_node_ready():
@@ -40,14 +181,88 @@ func refresh_inventory() -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if player == null:
 		return
-	var parts: Array[String] = []
 	var snap: Dictionary = player.inventory.snapshot()
+	var w: float = player.inventory.total_weight()
+
+	var parts: Array[String] = []
 	for id: String in snap:
 		if GameItems.is_tool_item(id):
 			continue
 		parts.append("%s x%d" % [GameItems.name_of(id), int(snap[id].get("count", 0))])
-	inventory_label.text = "Inventario (%d/%d kg)  " % [int(player.inventory.total_weight()), int(Inventory.MAX_WEIGHT)]
+	inventory_label.text = "Inventario (%d/%d kg)  " % [int(w), int(Inventory.MAX_WEIGHT)]
 	inventory_label.text += " · ".join(parts) if not parts.is_empty() else "vacío"
+
+	_weight_bar.value = w
+	_weight_label.text = "%.1f / %.0f kg" % [w, float(Inventory.MAX_WEIGHT)]
+	_update_weight_color(w)
+
+	for c in _item_list.get_children():
+		_item_list.remove_child(c)
+		c.queue_free()
+	if snap.is_empty():
+		var empty := Label.new()
+		empty.text = "Vacío"
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.modulate.a = 0.6
+		_item_list.add_child(empty)
+		return
+	for id: String in snap:
+		var row := Label.new()
+		var s: Dictionary = snap[id]
+		var iw: float = GameItems.info(id).get("weight", 0.0)
+		if GameItems.is_tool_item(id):
+			row.text = "%s   %d/%d   (%.1f kg)" % [GameItems.name_of(id), int(s.get("durability", 0)), int(GameItems.max_durability(id)), iw]
+		else:
+			row.text = "%s x%d   (%.1f kg)" % [GameItems.name_of(id), int(s.get("count", 0)), iw * int(s.get("count", 0))]
+		_item_list.add_child(row)
+
+func _update_weight_color(w: float) -> void:
+	var ratio := w / Inventory.MAX_WEIGHT
+	if ratio > 0.9:
+		_weight_fill.bg_color = Color(0.85, 0.25, 0.2, 1)
+	elif ratio > 0.7:
+		_weight_fill.bg_color = Color(0.9, 0.65, 0.2, 1)
+	else:
+		_weight_fill.bg_color = Color(0.3, 0.75, 0.35, 1)
+
+func refresh_hotbar() -> void:
+	if not is_node_ready():
+		return
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	var snap: Dictionary = player.inventory.snapshot()
+	_hotbar_order = _hotbar_from_snapshot(snap)
+	var selected: String = player.equipped
+	for i in HOTBAR_SLOTS:
+		var b: Button = _slot_buttons[i]
+		if i < _hotbar_order.size():
+			var id: String = _hotbar_order[i]
+			var s: Dictionary = snap[id]
+			var text := ""
+			if GameItems.is_tool_item(id):
+				text = "%s %d" % [GameItems.short_name(id), int(s.get("durability", 0))]
+			else:
+				text = "%s x%d" % [GameItems.short_name(id), int(s.get("count", 0))]
+			b.disabled = false
+			b.tooltip_text = GameItems.name_of(id)
+			b.text = text
+			b.button_pressed = (id == selected)
+		else:
+			b.disabled = true
+			b.tooltip_text = ""
+			b.text = ""
+			b.button_pressed = false
+
+func _hotbar_from_snapshot(snap: Dictionary) -> Array[String]:
+	var order: Array[String] = []
+	for t in TOOL_ORDER:
+		if snap.has(t):
+			order.append(t)
+	for id: String in snap:
+		if not GameItems.is_tool_item(id) and id not in order:
+			order.append(id)
+	return order
 
 func refresh_skills() -> void:
 	if not is_node_ready():

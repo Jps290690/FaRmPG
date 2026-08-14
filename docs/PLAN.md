@@ -127,3 +127,14 @@ assets/   (textures/, audio/, tilesets/)
   - **Timing `_ready`:** el player `_ready` corre antes que el HUD `_ready` → el HUD debe refrescar en su propio `_ready` y guardar con `is_node_ready()`.
   - **Bridge input:** `runtime_input` inyecta `keycode` + `physical_keycode` (fix en `addons/godot-mcp/runtime_bridge.gd`), necesario para acciones con `physical_keycode`.
 - Siguiente tarea: **Fase 4 — Inventario + hotbar + peso** (UI de inventario desplegable, hotbar, manejo de peso visual).
+
+### Estado del juego (Fase 4 — VERIFICADA ✓)
+- **Inventario + hotbar + peso implementados y verificados en runtime:**
+  - **Hotbar** de 8 slots (teclas 1-8) con botones toggle. Orden: herramientas fijas [Hacha, Pico, Hoz, Cuchillo] y luego recursos. Texto del slot = nombre corto + durabilidad (tools) o cantidad (recursos); vacíos deshabilitados; tooltip = nombre completo; seleccionado resaltado con `button_pressed`.
+  - **Herramienta equipada:** el jugador empieza con `equipped = "axe"`. Teclas 1-8 / click en slot equipan la herramienta (`select_slot`); el label inferior muestra "Equipado: <nombre> cur/max".
+  - **Recolección con herramienta equipada:** `_try_gather` valida contra la tool equipada (no contra inventario): mensajes "Equipá una herramienta (hotbar 1-8).", "Necesitás <tool> equipado." o "Tu <tool> está rota.". Si la herramienta se rompe al recolectar, se desequipa (`equipped=""`) y avisa "Tu <tool> se rompió.".
+  - **Panel de inventario (tecla B):** PanelContainer centrado con título, barra de peso (ProgressBar max 30 kg, color verde/naranja/rojo según ratio >0.7/>0.9), separador y lista de ítems (tools: "Hacha 99/100 (3.0 kg)", recursos: "Madera x1 (0.5 kg)"). Toggle con B (`toggle_inventory`), refresca al abrir.
+  - **Label inferior** "Inventario (X/30 kg)" movido arriba (offset -96/-68) para no solaparse con la hotbar.
+- Verificación runtime (PID 2188): `equipped=pickaxe` al presionar tecla 2; "Necesitás Hacha equipado." al recolectar madera con pico; con hacha → `axe dur 99`, `wood x1`, peso 10.5/30, XP tala 6; hotbar muestra "Hacha 99"; panel con filas correctas y barra en 10.5. Log sin errores. Capturas: `capturas/fase4_hotbar.png` y `capturas/fase4_panel.png`.
+- **Lección técnica (Godot 4.6):** con `hud` tipado como `Node`, `var id := hud.hotbar_id_at(...)` falla ("Cannot infer the type") porque el retorno es Variant → tipar explícitamente (`var id: String = ...`) o castear el evento (`var kce: InputEventKey = event`).
+- Siguiente tarea: **Fase 5 — Refinado/crafteo por estaciones + set T1** (estaciones en la base, recetas, materiales T1).
