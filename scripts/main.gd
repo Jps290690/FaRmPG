@@ -1,7 +1,4 @@
-extends Control
+extends Node2D
 
-# Placeholder principal del POC — Fase 1 (cimientos).
-# Se reemplazará por la escena de juego real en la Fase 2.
-
-func _ready() -> void:
-	pass
+# Punto de entrada del POC.
+# Simplemente instancia el mundo (main.tscn lo carga como hijo).

@@ -99,3 +99,31 @@ assets/   (textures/, audio/, tilesets/)
 | Economía POC | Oferta/demanda simple sin eventos |
 | Skills | 4 skills por oficio, 3 efectos c/u |
 | Meta POC | Craftear set T1 completo + todas las estaciones |
+
+---
+
+## Notas de sesión (contexto para retomar el trabajo)
+
+### Visión (opencode-vision MCP) — configurado
+- MCP de visión activo en `~/.config/opencode/opencode.jsonc` (server `opencode_vision.server`, parches aplicados en `C:\Users\Juampi\opencode-vision\`, API key en `~/.config/opencode/.env`).
+- Cuando el usuario dice **"usá la tool de visión"**: usar `vision_analyze` / `vision_describe` / `vision_clipboard` sobre las capturas del juego.
+- Verificado: el MCP analiza imágenes correctamente (probado con `capturas/fase2_juego.png`).
+
+### Estado del juego (Fase 2 — VERIFICADA ✓)
+- El mundo isométrico está implementado y **verificado visualmente con la tool de visión**:
+  - `capturas/fase2_mapa_completo.png` (zoom-out 0.42): 4 biomas correctamente ubicados (bosque verde oscuro arriba-izq, cantera gris arriba-der, pradera verde claro abajo-izq, arboleda verde azulado abajo-der) + base marrón central con borde de hierba + jugador (rombo naranja) centrado.
+  - `capturas/fase2_ventana.png` (zoom 1.5): render de la base y biomas adyacentes, HUD de controles visible. Sin errores en log.
+- Captura de ventana: `capture_screenshot` del MCP toma todo el escritorio (2 monitores) — para capturar solo la ventana del juego usar PrintWindow via PowerShell (ver técnica en `tutorial_vision.md`).
+- El repo es público (Jps290690/FaRmPG) y el deploy de GitHub Pages ya funciona: https://Jps290690.github.io/FaRmPG/
+
+### Estado del juego (Fase 3 — VERIFICADA ✓)
+- **Recolección completa y verificada en runtime:** nodos de recurso (wood/stone/fiber/leather/mineral) con 5 usos y respawn (12s), 4 herramientas con durabilidad (axe/pickaxe/sickle/skinning_knife, 100), 4 skills con XP y niveles (curva 20·(lv+1)), peso de inventario (30 kg).
+  - Ciclo probado: 5 golpes → `wood x5`, hacha 95/100, Tala L1 (xp 10/40), peso 12.5/30; nodo agotado (`harvestable=false`), respawn a los 12s.
+  - HUD en vivo: `capturas/fase3_hud.png` muestra Tool (`Hacha 99/100`), Inventory (`Inventario (10/30 kg) Madera x1`) y Skills (`Tala L0 · Minería L0 · Cosecha L0 · Caza L0`). Cero errores en godot.log.
+- **Lecciones técnicas (Godot 4.6) — importantes:**
+  - **Input actions:** las acciones custom van en la sección `[input]` de `project.godot` (propiedades `input/<accion>`), NO `[input_map]` (ignorada por `InputMap::load_from_project_settings()`).
+  - **Grupos en tscn:** `groups = ["player"]` sobre un nodo instanciado NO se aplica en runtime → usar `add_to_group()` en `_ready()`.
+  - **Nombres de funciones estáticas:** NO nombrar una función estática `is_tool` en una clase `class_name` — colisiona con el campo de metadata `"is_tool"` del class cache (falla "Expected 0 argument(s)" con binding estático). Usar `is_tool_item`.
+  - **Timing `_ready`:** el player `_ready` corre antes que el HUD `_ready` → el HUD debe refrescar en su propio `_ready` y guardar con `is_node_ready()`.
+  - **Bridge input:** `runtime_input` inyecta `keycode` + `physical_keycode` (fix en `addons/godot-mcp/runtime_bridge.gd`), necesario para acciones con `physical_keycode`.
+- Siguiente tarea: **Fase 4 — Inventario + hotbar + peso** (UI de inventario desplegable, hotbar, manejo de peso visual).

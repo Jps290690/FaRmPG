@@ -212,6 +212,7 @@ func _cmd_input(params: Dictionary) -> Dictionary:
 	var action: String = params.get("action", "press")
 	var ev := InputEventKey.new()
 	ev.keycode = keycode
+	ev.physical_keycode = keycode
 	ev.pressed = (action != "release")
 	Input.parse_input_event(ev)
 	return {"ok": true, "action": action}
