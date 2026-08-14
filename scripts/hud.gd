@@ -24,6 +24,9 @@ var _craft_panel: PanelContainer
 var _craft_title: Label
 var _craft_list: VBoxContainer
 var _craft_station_id := ""
+var _hp_bar: ProgressBar
+var _hp_label: Label
+var _death_panel: PanelContainer
 
 func _ready() -> void:
 	_msg_timer = Timer.new()
@@ -34,9 +37,12 @@ func _ready() -> void:
 	_build_hotbar()
 	_build_inventory_panel()
 	_build_crafting_panel()
+	_build_hp_bar()
+	_build_death_panel()
 	refresh_tool("")
 	refresh_inventory()
 	refresh_skills()
+	set_hp(Player.MAX_HP)
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
 		set_equipped(player.equipped)
@@ -176,6 +182,9 @@ func refresh_tool(id: String) -> void:
 		tool_label.text = "Herramienta: —"
 		return
 	var info := GameItems.info(id)
+	if GameItems.is_weapon_item(id):
+		tool_label.text = "Equipado: %s" % info.get("name", id)
+		return
 	var cur = player.inventory.get_durability(id)
 	var max_d := GameItems.max_durability(id)
 	tool_label.text = "Equipado: %s  %d/%d" % [info.get("name", id), int(cur), int(max_d)]
@@ -384,6 +393,98 @@ func _on_craft_pressed(recipe_id: String) -> void:
 	var player := get_tree().get_first_node_in_group("player")
 	if player:
 		player.craft(recipe_id)
+
+func _build_hp_bar() -> void:
+	var root := Control.new()
+	root.name = "HpRoot"
+	root.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	root.offset_top = 8.0
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(root)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(center)
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 8)
+	center.add_child(hbox)
+	var label := Label.new()
+	label.text = "Vida"
+	label.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	label.add_theme_constant_override("outline_size", 3)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hbox.add_child(label)
+	var bar := ProgressBar.new()
+	bar.custom_minimum_size = Vector2(220, 18)
+	bar.show_percentage = false
+	bar.max_value = Player.MAX_HP
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0, 0, 0, 0.5)
+	bg.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("background", bg)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.85, 0.25, 0.2, 1)
+	fill.set_corner_radius_all(3)
+	bar.add_theme_stylebox_override("fill", fill)
+	hbox.add_child(bar)
+	var val := Label.new()
+	val.custom_minimum_size = Vector2(90, 0)
+	val.text = "100/100"
+	val.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hbox.add_child(val)
+	_hp_bar = bar
+	_hp_label = val
+
+func set_hp(hp: float) -> void:
+	if not is_node_ready():
+		return
+	_hp_bar.value = hp
+	_hp_label.text = "%.0f/%.0f" % [hp, Player.MAX_HP]
+
+func _build_death_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.name = "DeathPanel"
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(380, 0)
+	panel.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.12, 0.05, 0.05, 0.94)
+	sb.border_color = Color(1, 0.4, 0.3, 0.5)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.content_margin_left = 24
+	sb.content_margin_right = 24
+	sb.content_margin_top = 18
+	sb.content_margin_bottom = 18
+	panel.add_theme_stylebox_override("panel", sb)
+	add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+	var title := Label.new()
+	title.text = "Has muerto"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1, 0.5, 0.4, 1))
+	vbox.add_child(title)
+	var sub := Label.new()
+	sub.text = "Perdiste todo tu inventario."
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(sub)
+	var hint := Label.new()
+	hint.text = "Presioná R para reaparecer en la base"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
+	vbox.add_child(hint)
+	_death_panel = panel
+
+func show_death() -> void:
+	_death_panel.visible = true
+
+func hide_death() -> void:
+	_death_panel.visible = false
 
 func message(text: String) -> void:
 	message_label.text = text

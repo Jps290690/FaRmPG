@@ -31,6 +31,7 @@ var tile_sources := {
 @onready var camera: Camera2D = $Player/Camera2D
 @onready var nodes_container: Node2D = $ResourceNodes
 @onready var stations_container: Node2D = $Stations
+@onready var aspects_container: Node2D = $Aspects
 
 # Distribución de nodos por bioma: tipo, tool, skill, cantidad.
 const NODE_SPAWNS := {
@@ -54,6 +55,7 @@ func _ready() -> void:
 	_build_base_border()
 	_spawn_resource_nodes()
 	_spawn_stations()
+	_spawn_aspects()
 	_center_camera_on_base()
 
 func _biome_at(tx: int, ty: int) -> String:
@@ -223,3 +225,27 @@ func _spawn_stations() -> void:
 		station.station_id = id
 		station.position = center + STATION_SPOTS[id]
 		stations_container.add_child(station)
+
+# Aspectos guardianes (Fase 6): [tipo, celda del mapa].
+func _spawn_aspects() -> void:
+	var plans := [
+		["Ent", Vector2i(16, 8)],
+		["Golem", Vector2i(32, 8)],
+		["Boar", Vector2i(16, 26)],
+		["Dryad", Vector2i(30, 26)],
+		["Dryad", Vector2i(36, 30)],
+	]
+	for plan in plans:
+		var aspect: Aspect
+		match plan[0]:
+			"Ent":
+				aspect = EntAspect.new()
+			"Golem":
+				aspect = GolemAspect.new()
+			"Boar":
+				aspect = BoarAspect.new()
+			"Dryad":
+				aspect = DryadAspect.new()
+		aspect.name = "%s%d" % [plan[0], aspects_container.get_child_count() + 1]
+		aspect.position = _cell_to_world(plan[1])
+		aspects_container.add_child(aspect)

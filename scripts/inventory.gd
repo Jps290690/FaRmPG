@@ -63,6 +63,10 @@ func use_tool(id: String) -> bool:
 	changed.emit()
 	return has_item(id)
 
+func clear() -> void:
+	_slots = {}
+	changed.emit()
+
 func snapshot() -> Dictionary:
 	return _slots.duplicate(true)
 

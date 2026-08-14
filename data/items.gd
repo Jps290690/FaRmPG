@@ -25,9 +25,9 @@ const ITEMS := {
 	"metal_pickaxe": {"name": "Pico de metal", "short": "P. metal", "type": ItemType.TOOL, "weight": 3.5, "durability": 250, "harvest": "stone", "skill": "mining"},
 	"metal_sickle": {"name": "Hoz de metal", "short": "Hoz metal", "type": ItemType.TOOL, "weight": 2.0, "durability": 250, "harvest": "fiber", "skill": "gathering"},
 	"metal_knife": {"name": "Cuchillo de metal", "short": "C. metal", "type": ItemType.TOOL, "weight": 1.5, "durability": 250, "harvest": "leather", "skill": "hunting"},
-	# Arma y armadura T1 (Fase 5)
-	"sword": {"name": "Espada de hierro", "short": "Espada", "type": ItemType.WEAPON, "weight": 4.0},
-	"chestplate": {"name": "Peto de cuero", "short": "Peto", "type": ItemType.ARMOR, "weight": 6.0},
+	# Arma y armadura T1 (Fase 5/6 — combate)
+	"sword": {"name": "Espada de hierro", "short": "Espada", "type": ItemType.WEAPON, "weight": 4.0, "damage": 25.0, "range": 60.0},
+	"chestplate": {"name": "Peto de cuero", "short": "Peto", "type": ItemType.ARMOR, "weight": 6.0, "armor": 6.0},
 }
 
 static func info(id: String) -> Dictionary:
@@ -41,6 +41,18 @@ static func short_name(id: String) -> String:
 
 static func is_tool_item(id: String) -> bool:
 	return info(id).get("type", -1) == ItemType.TOOL
+
+static func is_weapon_item(id: String) -> bool:
+	return info(id).get("type", -1) == ItemType.WEAPON
+
+static func is_armor_item(id: String) -> bool:
+	return info(id).get("type", -1) == ItemType.ARMOR
+
+static func weapon_damage(id: String) -> float:
+	return float(info(id).get("damage", 0.0))
+
+static func armor_value(id: String) -> float:
+	return float(info(id).get("armor", 0.0))
 
 static func max_durability(id: String) -> float:
 	return float(info(id).get("durability", 0))
