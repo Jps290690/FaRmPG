@@ -18,16 +18,12 @@ func _init() -> void:
 	speed = 38.0
 
 func _build_body() -> void:
-	var body := Node2D.new()
-	body.name = "Body"
-	add_child(body)
-	_poly(body, PackedVector2Array([-18, 8, -12, -10, 0, -18, 14, -8, 16, 8, 0, 16, -14, 12]), Color("#6f747c"))
-	_poly(body, PackedVector2Array([-22, 10, -14, 8, -10, 16, -18, 18]), Color("#5a5f66"))
-	_poly(body, PackedVector2Array([16, 4, 24, 2, 22, 10, 14, 10]), Color("#5a5f66"))
+	_setup_body(PixelArt.SPRITES["GOLEM"])
 	_core = Polygon2D.new()
-	_core.polygon = PackedVector2Array([0, -10, 5, -5, 0, 0, -5, -5])
+	_core.polygon = PackedVector2Array([0, -4, 4, 0, 0, 4, -4, 0])
 	_core.color = Color("#ffd84d")
-	body.add_child(_core)
+	_core.position = Vector2(0, -14)
+	_body.add_child(_core)
 
 func _tick(delta: float) -> void:
 	var p := _player()

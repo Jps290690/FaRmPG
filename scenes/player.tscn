@@ -9,9 +9,7 @@
 [node name="Player" type="CharacterBody2D"]
 script = ExtResource("1_player")
 
-[node name="Sprite" type="Polygon2D" parent="."]
-color = Color(0.901961, 0.494118, 0.133333, 1)
-polygon = PackedVector2Array(16, 0, 32, 8, 16, 16, 0, 8)
+[node name="Sprite" type="Sprite2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")

@@ -6,17 +6,9 @@ func _ready() -> void:
 	_build_visuals()
 
 func _build_visuals() -> void:
-	var pad := Polygon2D.new()
-	pad.name = "Pad"
-	pad.polygon = PackedVector2Array([-32, 0, 0, -16, 32, 0, 0, 16])
-	pad.color = Color("#7a5c2e").darkened(0.3)
-	add_child(pad)
-
-	var inner := Polygon2D.new()
-	inner.name = "Inner"
-	inner.polygon = PackedVector2Array([-16, 0, 0, -8, 16, 0, 0, 8])
-	inner.color = Color("#f5c542")
-	add_child(inner)
+	var sprite := PixelArt.make_sprite(self, PixelArt.SPRITES["MERCHANT"], PixelArt.PAL, 2)
+	sprite.name = "Art"
+	PixelArt.make_shadow(self, 40, 12)
 
 	var label := Label.new()
 	label.name = "Name"

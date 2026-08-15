@@ -17,6 +17,8 @@ script = ExtResource("1_world")
 
 [node name="NPCs" type="Node2D" parent="."]
 
+[node name="Decor" type="Node2D" parent="."]
+
 [node name="Player" parent="." instance=ExtResource("2_player")]
 groups = ["player"]
 

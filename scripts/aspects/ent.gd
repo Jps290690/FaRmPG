@@ -22,16 +22,10 @@ func _init() -> void:
 	speed = PATROL_SPEED
 
 func _build_body() -> void:
-	var body := Node2D.new()
-	body.name = "Body"
-	add_child(body)
-	_poly(body, PackedVector2Array([-12, 2, 12, 2, 8, 16, -8, 16]), Color("#5c3d1e"))
-	_poly(body, PackedVector2Array([0, -28, 20, -6, 14, 8, -14, 8, -20, -6]), Color("#2f6b32"))
-	_eyes = Node2D.new()
+	_setup_body(PixelArt.SPRITES["ENT"])
+	_eyes = PixelArt.make_sprite_centered(_body, PixelArt.SPRITES["EYES"], PixelArt.PAL, 2)
 	_eyes.visible = false
-	body.add_child(_eyes)
-	_poly(_eyes, PackedVector2Array([-6, -8, -3, -11, 0, -8, -3, -5]), Color("#ffd84d"))
-	_poly(_eyes, PackedVector2Array([2, -8, 5, -11, 8, -8, 5, -5]), Color("#ffd84d"))
+	_eyes.position = Vector2(0, -25)
 
 func _tick(delta: float) -> void:
 	var p := _player()

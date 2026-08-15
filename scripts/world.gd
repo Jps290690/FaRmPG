@@ -6,8 +6,7 @@ const MAP_W := 48
 const MAP_H := 36
 const BASE_RADIUS := 5
 
-# Colores provisionales por bioma (rombos generados por código).
-# Se reemplazarán por tilesets CC0 reales más adelante.
+# Colores por bioma (rombos generados por código con textura y variantes).
 const COLORS := {
 	"grass": Color("#5d8c3f"),
 	"base": Color("#b8895a"),
@@ -15,6 +14,15 @@ const COLORS := {
 	"quarry": Color("#9aa0a8"),
 	"prairie": Color("#8fbf55"),
 	"grove": Color("#3f8f6b"),
+}
+
+const EDGE_SOURCE := 6
+
+const EDGE_TILES := {
+	"forest": 0,
+	"quarry": 1,
+	"prairie": 2,
+	"grove": 3,
 }
 
 var tile_sources := {
@@ -33,6 +41,9 @@ var tile_sources := {
 @onready var stations_container: Node2D = $Stations
 @onready var aspects_container: Node2D = $Aspects
 @onready var npcs_container: Node2D = $NPCs
+@onready var decor_container: Node2D = $Decor
+
+var _used_cells := {}
 
 # Distribución de nodos por bioma: tipo, tool, skill, cantidad.
 const NODE_SPAWNS := {
@@ -58,6 +69,7 @@ func _ready() -> void:
 	_spawn_stations()
 	_spawn_aspects()
 	_spawn_npcs()
+	_spawn_decor()
 	_center_camera_on_base()
 	player.load_game()
 
@@ -78,56 +90,102 @@ func _build_tileset() -> void:
 	var tileset := TileSet.new()
 	tileset.tile_size = Vector2i(TILE_W, TILE_H)
 
-	# Patrón de rombo isométrico para cada bioma.
+	# 3 variantes por bioma (dither con distinto seed) para romper la repetición.
 	for key: String in COLORS:
-		var img := Image.create(TILE_W, TILE_H, false, Image.FORMAT_RGBA8)
-		var c: Color = COLORS[key]
-		_draw_diamond(img, c)
+		var img := Image.create(TILE_W, TILE_H * 3, false, Image.FORMAT_RGBA8)
+		for v in 3:
+			var tile := Image.create(TILE_W, TILE_H, false, Image.FORMAT_RGBA8)
+			_draw_tile(tile, COLORS[key], v)
+			img.blit_rect(tile, Rect2i(0, 0, TILE_W, TILE_H), Vector2i(0, v * TILE_H))
 		var tex := ImageTexture.create_from_image(img)
 		var source := TileSetAtlasSource.new()
 		source.texture = tex
 		source.texture_region_size = Vector2i(TILE_W, TILE_H)
 		source.create_tile(Vector2i(0, 0))
+		source.create_tile(Vector2i(0, 1))
+		source.create_tile(Vector2i(0, 2))
 		tileset.add_source(source, tile_sources[key])
+
+	# Tiles de transición base <-> bioma (mezcla con dither).
+	var edge_img := Image.create(TILE_W, TILE_H * 4, false, Image.FORMAT_RGBA8)
+	var biomes := ["forest", "quarry", "prairie", "grove"]
+	for v in 4:
+		var tile := Image.create(TILE_W, TILE_H, false, Image.FORMAT_RGBA8)
+		_draw_edge(tile, COLORS["base"], COLORS[biomes[v]], v)
+		edge_img.blit_rect(tile, Rect2i(0, 0, TILE_W, TILE_H), Vector2i(0, v * TILE_H))
+	var edge_source := TileSetAtlasSource.new()
+	edge_source.texture = ImageTexture.create_from_image(edge_img)
+	edge_source.texture_region_size = Vector2i(TILE_W, TILE_H)
+	for v in 4:
+		edge_source.create_tile(Vector2i(0, v))
+	tileset.add_source(edge_source, EDGE_SOURCE)
 
 	ground.tile_set = tileset
 
-func _draw_diamond(img: Image, c: Color) -> void:
-	# Rombo 2:1 (64x32) con leve borde para dar relieve.
-	var darker := c.darkened(0.35)
+func _draw_tile(img: Image, c: Color, seed_v: int) -> void:
+	# Rombo 2:1 con dither determinista y borde de relieve.
+	var darker := c.darkened(0.3)
+	var light := c.lightened(0.12)
 	for y in range(TILE_H):
 		var half := TILE_H / 2.0
 		var x_span := 1.0 - absf(y - half) / half  # 0..1
 		var start := int(round((TILE_W / 2.0) - x_span * (TILE_W / 2.0)))
 		var end := int(round((TILE_W / 2.0) + x_span * (TILE_W / 2.0)))
 		for x in range(start, end):
+			var col := c
 			if y == 0 or x == start or x == end - 1:
-				img.set_pixel(x, y, darker)
+				col = darker
 			else:
-				img.set_pixel(x, y, c)
+				var h := PixelArt.hash2(x * 7 + seed_v * 101, y * 13 + seed_v * 73)
+				if h < 0.12:
+					col = darker
+				elif h > 0.93:
+					col = light
+			img.set_pixel(x, y, col)
+
+func _draw_edge(img: Image, base_c: Color, biome_c: Color, seed_v: int) -> void:
+	# Mezcla horizontal base (izquierda) -> bioma (derecha) con dither.
+	for y in range(TILE_H):
+		var half := TILE_H / 2.0
+		var x_span := 1.0 - absf(y - half) / half
+		var start := int(round((TILE_W / 2.0) - x_span * (TILE_W / 2.0)))
+		var end := int(round((TILE_W / 2.0) + x_span * (TILE_W / 2.0)))
+		for x in range(start, end):
+			var t := float(x - start) / float(maxi(1, end - start - 1))
+			var col := base_c.lerp(biome_c, clampf(t * 2.0 - 0.5, 0.0, 1.0))
+			var h := PixelArt.hash2(x * 31 + seed_v * 101, y * 17 + seed_v * 73)
+			if h < 0.1:
+				col = col.darkened(0.15)
+			if y == 0 or x == start or x == end - 1:
+				col = col.darkened(0.25)
+			img.set_pixel(x, y, col)
 
 func _build_ground() -> void:
 	for tx in range(MAP_W):
 		for ty in range(MAP_H):
 			var biome := _biome_at(tx, ty)
-			ground.set_cell(Vector2i(tx, ty), tile_sources[biome], Vector2i(0, 0))
+			var variant := int(PixelArt.hash2(tx, ty) * 3)
+			ground.set_cell(Vector2i(tx, ty), tile_sources[biome], Vector2i(0, variant))
 
 func _build_base_border() -> void:
-	# Zona base rodeada de hierba para delimitar visualmente el centro.
+	# Zona base rodeada de transiciones hacia el bioma vecino.
 	for tx in range(MAP_W):
 		for ty in range(MAP_H):
 			if _biome_at(tx, ty) != "base":
 				continue
-			var neighbor_border := false
-			for dx in [-1, 0, 1]:
-				for dy in [-1, 0, 1]:
-					if _biome_at(tx + dx, ty + dy) != "base":
-						neighbor_border = true
+			var nb := ""
+			for dy in [-1, 0, 1]:
+				for dx in [-1, 0, 1]:
+					if dx == 0 and dy == 0:
+						continue
+					var b2 := _biome_at(tx + dx, ty + dy)
+					if b2 != "base":
+						nb = b2
 						break
-				if neighbor_border:
+				if nb != "":
 					break
-			if neighbor_border:
-				ground.set_cell(Vector2i(tx, ty), tile_sources["grass"], Vector2i(0, 0))
+			if nb != "":
+				ground.set_cell(Vector2i(tx, ty), EDGE_SOURCE, Vector2i(0, EDGE_TILES[nb]))
 
 func _spawn_resource_nodes() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -149,6 +207,7 @@ func _spawn_resource_nodes() -> void:
 				if _too_close_to_base(cell):
 					continue
 				grid[cell] = true
+				_used_cells[cell] = true
 				var node := ResourceNode.new()
 				node.resource_type = resource
 				node.tool_required = tool
@@ -157,6 +216,7 @@ func _spawn_resource_nodes() -> void:
 				node.gather_time = _gather_time_for(resource)
 				node.position = _cell_to_world(cell)
 				nodes_container.add_child(node)
+				node.z_index = int(node.position.y)
 				placed += 1
 
 func _random_cell_in_biome(biome: String, rng: RandomNumberGenerator) -> Vector2i:
@@ -180,7 +240,8 @@ func _too_close_to_base(cell: Vector2i) -> bool:
 	return dx <= BASE_RADIUS + 2 and dy <= BASE_RADIUS + 2
 
 func _cell_to_world(cell: Vector2i) -> Vector2:
-	return Vector2(cell.x * TILE_W + TILE_W / 2.0, cell.y * TILE_H + TILE_H / 2.0)
+	# Punto inferior del rombo (donde "se paran" los objetos).
+	return Vector2(cell.x * TILE_W + TILE_W / 2.0, (cell.y + 1) * TILE_H)
 
 func _amount_for(resource: String) -> int:
 	match resource:
@@ -228,6 +289,7 @@ func _spawn_stations() -> void:
 		station.station_id = id
 		station.position = center + STATION_SPOTS[id]
 		stations_container.add_child(station)
+		station.z_index = int(station.position.y)
 
 func _spawn_npcs() -> void:
 	var merchant := Merchant.new()
@@ -235,6 +297,32 @@ func _spawn_npcs() -> void:
 	var center := Vector2(MAP_W / 2.0 * TILE_W, MAP_H / 2.0 * TILE_H)
 	merchant.position = center + Vector2(0, -176)
 	npcs_container.add_child(merchant)
+	merchant.z_index = int(merchant.position.y)
+
+func _spawn_decor() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var kinds := {
+		"forest": ["DECOR_GRASS", "DECOR_GRASS", "DECOR_MUSHROOM", "DECOR_BUSH"],
+		"quarry": ["DECOR_ROCK", "DECOR_ROCK", "DECOR_GRASS"],
+		"prairie": ["DECOR_GRASS", "DECOR_FLOWER", "DECOR_GRASS", "DECOR_FLOWER"],
+		"grove": ["DECOR_GRASS", "DECOR_FLOWER", "DECOR_BUSH"],
+	}
+	for tx in range(MAP_W):
+		for ty in range(MAP_H):
+			var biome := _biome_at(tx, ty)
+			if biome == "base" or biome == "grass":
+				continue
+			var cell := Vector2i(tx, ty)
+			if cell in _used_cells or _too_close_to_base(cell):
+				continue
+			if rng.randf() > 0.14:
+				continue
+			var pool: Array = kinds[biome]
+			var kind: String = pool[rng.randi_range(0, pool.size() - 1)]
+			var sprite := PixelArt.make_sprite(decor_container, PixelArt.SPRITES[kind], PixelArt.PAL, 2)
+			sprite.position = _cell_to_world(cell) + Vector2(0, 4)
+			sprite.z_index = int(sprite.position.y)
 
 # Aspectos guardianes (Fase 6): [tipo, celda del mapa].
 func _spawn_aspects() -> void:

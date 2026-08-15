@@ -21,6 +21,8 @@ var _telegraph_left := 0.0
 var _flash_left := 0.0
 var _body: Node2D
 var _hp_bar: ProgressBar
+var _sprite_body: Sprite2D
+var _bob_time := 0.0
 
 func _ready() -> void:
 	add_to_group("aspects")
@@ -33,6 +35,15 @@ func _ready() -> void:
 
 func _build_body() -> void:
 	pass
+
+# Crea el cuerpo del aspecto como sprite pixel-art + sombra.
+func _setup_body(rows: Array, pal: Dictionary = PixelArt.PAL) -> void:
+	var body := Node2D.new()
+	body.name = "Body"
+	add_child(body)
+	_body = body
+	_sprite_body = PixelArt.make_sprite(body, rows, pal, 2)
+	PixelArt.make_shadow(self, 30, 10)
 
 func _build_hp_bar() -> void:
 	_hp_bar = ProgressBar.new()
@@ -63,6 +74,7 @@ func _physics_process(delta: float) -> void:
 	_hp_bar.visible = hp < max_hp
 	_hp_bar.value = hp
 	_tick(delta)
+	z_index = int(global_position.y)
 	# Zona segura: el jugador en su base no es reconocido ni atacado por nada.
 	if p != null and p.in_base():
 		calm()
@@ -138,7 +150,17 @@ func _on_telegraph_end() -> void:
 
 func _move_toward(pos: Vector2, delta: float, spd: float = -1.0) -> void:
 	var s := speed if spd < 0.0 else spd
+	var dir := pos - global_position
+	if dir.length() <= 0.5:
+		return
 	global_position = global_position.move_toward(pos, s * delta)
+	if _sprite_body:
+		if dir.x > 0.0:
+			_sprite_body.flip_h = false
+		elif dir.x < 0.0:
+			_sprite_body.flip_h = true
+		_bob_time += delta
+		_sprite_body.position.y = -float(_sprite_body.texture.get_height()) + sin(_bob_time * 9.0) * 1.5
 
 # Apaga la agresión (usado cuando el jugador muere/respawnea). Cada aspecto
 # resetea además su estado visual propio.

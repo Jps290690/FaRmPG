@@ -20,12 +20,8 @@ func _init() -> void:
 	speed = 90.0
 
 func _build_body() -> void:
-	var body := Node2D.new()
-	body.name = "Body"
-	add_child(body)
-	_poly(body, PackedVector2Array([-6, -14, 6, -14, 8, 6, 0, 16, -8, 6]), Color("#3f8f6b"))
-	_poly(body, PackedVector2Array([-8, -18, 0, -26, 8, -18, 4, -12, -4, -12]), Color("#5fbf8b"))
-	body.modulate = Color(1, 1, 1, 0.2)
+	_setup_body(PixelArt.SPRITES["DRYAD"])
+	_body.modulate = Color(1, 1, 1, 0.2)
 
 func _tick(delta: float) -> void:
 	var p := _player()

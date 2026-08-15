@@ -5,7 +5,6 @@ extends Node2D
 
 var built := false
 
-var _pad: Polygon2D
 var _name_label: Label
 var _cost_label: Label
 
@@ -14,14 +13,9 @@ func _ready() -> void:
 	_build_visuals()
 
 func _build_visuals() -> void:
-	var info := Recipes.station_info(station_id)
-	var color := Color(info.get("color", "#888888"))
-	var pad := Polygon2D.new()
-	pad.name = "Pad"
-	pad.polygon = PackedVector2Array([-40, 0, 0, -20, 40, 0, 0, 20])
-	pad.color = color.darkened(0.35)
-	add_child(pad)
-	_pad = pad
+	var sprite := PixelArt.make_sprite(self, _art_for(), PixelArt.PAL, 2)
+	sprite.name = "Art"
+	PixelArt.make_shadow(self, 40, 12)
 
 	var name_label := Label.new()
 	name_label.name = "Name"
@@ -32,7 +26,7 @@ func _build_visuals() -> void:
 	name_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	name_label.add_theme_constant_override("outline_size", 3)
-	name_label.text = info.get("name", station_id)
+	name_label.text = Recipes.station_info(station_id).get("name", station_id)
 	add_child(name_label)
 	_name_label = name_label
 
@@ -49,6 +43,16 @@ func _build_visuals() -> void:
 	add_child(cost_label)
 	_cost_label = cost_label
 
+func _art_for() -> Array:
+	match station_id:
+		"forge":
+			return PixelArt.SPRITES["STATION_FORGE"]
+		"loom":
+			return PixelArt.SPRITES["STATION_LOOM"]
+		"tannery":
+			return PixelArt.SPRITES["STATION_TANNERY"]
+	return PixelArt.SPRITES["STATION_TABLE"]
+
 func _cost_text() -> String:
 	var cost: Dictionary = Recipes.BUILD_COSTS.get(station_id, {})
 	var parts := PackedStringArray()
@@ -58,8 +62,6 @@ func _cost_text() -> String:
 
 func build() -> void:
 	built = true
-	var info := Recipes.station_info(station_id)
-	_pad.color = Color(info.get("color", "#888888"))
 	_cost_label.text = "Lista (E)"
 	_cost_label.add_theme_color_override("font_color", Color(0.7, 1, 0.7, 1))
 

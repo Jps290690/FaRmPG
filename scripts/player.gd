@@ -44,10 +44,18 @@ var _save_timer: Timer
 @onready var hud: Node = world.get_node("HUD")
 @onready var nodes_container: Node2D = world.get_node("ResourceNodes")
 @onready var stations_container: Node2D = world.get_node("Stations")
-@onready var sprite: Polygon2D = $Sprite
+@onready var sprite: Sprite2D = $Sprite
+
+var _tex_idle: ImageTexture
+var _tex_walk: ImageTexture
+var _walk_time := 0.0
+var _walk_frame := false
+var _shadow: Sprite2D
+var _puff: CPUParticles2D
 
 func _ready() -> void:
 	add_to_group("player")
+	_build_visual()
 	inventory.changed.connect(hud.refresh_inventory)
 	inventory.changed.connect(hud.refresh_hotbar)
 	skills.changed.connect(hud.refresh_skills)
@@ -70,6 +78,51 @@ func _starter_tools() -> void:
 	inventory.add_item("sickle")
 	inventory.add_item("skinning_knife")
 	inventory.add_item("gold", STARTING_GOLD)
+
+# ---- Visual (pulido Fase 10) ----
+
+func _build_visual() -> void:
+	_tex_idle = PixelArt.make_texture(PixelArt.PLAYER_A, PixelArt.PLAYER_PAL, 2)
+	_tex_walk = PixelArt.make_texture(PixelArt.PLAYER_B, PixelArt.PLAYER_PAL, 2)
+	sprite.texture = _tex_idle
+	sprite.centered = false
+	sprite.position = Vector2(-14, -28)
+	_shadow = PixelArt.make_shadow(self, 24, 9)
+	_puff = CPUParticles2D.new()
+	_puff.texture = PixelArt.make_texture(PixelArt.PUFF, PixelArt.PAL, 2)
+	_puff.emitting = false
+	_puff.one_shot = false
+	_puff.amount = 10
+	_puff.lifetime = 0.45
+	_puff.position = Vector2(0, 0)
+	_puff.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	_puff.emission_rect_extents = Vector2(10, 3)
+	_puff.direction = Vector2(0, -1)
+	_puff.spread = 40.0
+	_puff.gravity = Vector2(0, 60)
+	_puff.initial_velocity_min = 12.0
+	_puff.initial_velocity_max = 34.0
+	_puff.scale_amount_min = 0.6
+	_puff.scale_amount_max = 1.1
+	_puff.color = Color(0.72, 0.62, 0.45, 0.45)
+	add_child(_puff)
+
+func _animate_sprite(delta: float, moving: bool) -> void:
+	var base_y := -28.0
+	if moving:
+		_walk_time += delta
+		if _walk_time >= 0.14:
+			_walk_time = 0.0
+			_walk_frame = not _walk_frame
+			sprite.texture = _tex_walk if _walk_frame else _tex_idle
+		if velocity.x > 5.0:
+			sprite.flip_h = false
+		elif velocity.x < -5.0:
+			sprite.flip_h = true
+		sprite.position.y = base_y + sin(_walk_time * 40.0) * 1.0
+	else:
+		sprite.texture = _tex_idle
+		sprite.position.y = base_y
 
 # ---- Zona segura de la base (Fase 9) ----
 
@@ -233,6 +286,12 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	z_index = int(global_position.y)
+	var moving := velocity.length() > 10.0
+	_animate_sprite(delta, moving)
+	if _puff:
+		_puff.emitting = moving
+
 func _tick_poison(delta: float) -> void:
 	if _poison_left <= 0.0:
 		return
@@ -277,6 +336,8 @@ func _die() -> void:
 	_poison_left = 0.0
 	_poison_timer = 0.0
 	sprite.modulate = Color.WHITE
+	if _puff:
+		_puff.emitting = false
 	for a in get_tree().get_nodes_in_group("aspects"):
 		a.calm()
 	has_target = false
@@ -610,6 +671,7 @@ func _complete_gather() -> void:
 		hud.message("Tu %s se rompió." % GameItems.name_of(_gather_tool))
 
 	node.harvest_success()
+	node.play_harvest_fx()
 	_last_gather_pos = node.global_position
 	_last_gather_time = Time.get_ticks_msec() * 0.001
 

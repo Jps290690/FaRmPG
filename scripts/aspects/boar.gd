@@ -19,12 +19,7 @@ func _init() -> void:
 	loot = {"leather": 8}
 
 func _build_body() -> void:
-	var body := Node2D.new()
-	body.name = "Body"
-	add_child(body)
-	_poly(body, PackedVector2Array([-18, 2, -6, -10, 8, -8, 16, 0, 10, 10, -10, 10]), Color("#8a5a3b"))
-	_poly(body, PackedVector2Array([16, -2, 24, -6, 22, 2, 14, 2]), Color("#7a4c30"))
-	_poly(body, PackedVector2Array([-8, -12, -2, -16, 4, -12, 2, -8, -6, -8]), Color("#6e4026"))
+	_setup_body(PixelArt.SPRITES["BOAR"])
 
 func take_damage(amount: float) -> void:
 	super.take_damage(amount)
